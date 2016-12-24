@@ -14,4 +14,17 @@ When launched it will prompt for username, password and environment to log into 
 
 It does not export anything locally, nor is it suitable for large deployments.  [Force.com CLI](https://force-cli.heroku.com/) is recommended for that, or similar tools.
 
-This is not an official product of Salesforce and is offered without guarantee or any promise of support.
+
+To install:
+
+```
+npm install zen-compiler -g
+```
+
+And then to use, just go to a working directy and on the command line:
+
+```
+zenc
+```
+
+I have tried to make it cross platform by design, but I have only been able to test it on OSX.  This is not an official product of Salesforce and is offered without guarantee or any promise of support.
