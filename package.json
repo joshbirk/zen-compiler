@@ -1,0 +1,19 @@
+{
+  "name": "zen-compiler",
+  "version": "1.0.0",
+  "description": "A lightweight CLI based harness for the Force.com Tooling API",
+  "main": "index.js",
+  "bin": {
+    "zenc" : "index.js"
+  },
+  "scripts": {
+    "test": "echo \"No test specified\" && exit 1"
+  },
+  "dependencies":{
+  	"jsforce":"*",
+    "node-notifier": "*",
+    "prompt": "*"
+  },
+  "author": "joshbirk",
+  "license": "ISC"
+}
