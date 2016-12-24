@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 var fs = require('fs');
 var notifier = require('node-notifier');
 var jsforce = require('jsforce');
