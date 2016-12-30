@@ -22,8 +22,6 @@ if (fs.existsSync('.zen')){
 prompt.message = colors.rainbow("zenf ");
 prompt.delimiter = colors.reset("");
 
-console.log(previous);
-
 var prompt_schema = null;
 if(!previous) {
     prompt_schema = {
