@@ -3,6 +3,7 @@ var fs = require('fs');
 var notifier = require('node-notifier');
 var jsforce = require('jsforce');
 var prompt = require('prompt');
+var colors = require("colors/safe");
 
 var names_to_ids = [];
 var names_to_metaids = [];
@@ -18,17 +19,44 @@ var pending_names = [];
 var wait_phrases1 = ["Brooks are babbling","Leaves are rustling","A cool breeze blows","Somewhere there is a rainbow","It is likely a puppy got adopted today","Somewhere, the skies are blue","Today is not a good day to die"];
 var wait_phrases2 = ["A mountain sighs","Changing the polarity","The tree that bends survives the storm","Take a deep breath","Every morning, a fresh dew on the leaf","Pixels can make true art","Mistakes are part of learning","Errors do not define you"];
 var wait_phrases3 = ["Take a moment, this API is...","Taking the next star to the right","A river flows into the ocean","Could use a sonic screwdriver","The sun will always shine again","We left footprints on the moon","Tomorrow is the first day of the rest of your life","Shy from danger, not the fight","To err is human"];
+
 var all_phrases = [];
-for(var x = 0; x < wait_phrases1.length; x++) {
-  all_phrases.push(wait_phrases1[x]);
-}
-for(var x = 0; x < wait_phrases2.length; x++) {
-  all_phrases.push(wait_phrases2[x]);
-}
-for(var x = 0; x < wait_phrases3.length; x++) {
-  all_phrases.push(wait_phrases3[x]);
+
+if(process.argv[0].indexOf("node") >= 0) {
+  if(process.argv.length > 2) {
+    all_phrases = fs.readFileSync(process.argv[2]).toString().split("\n");
+  }
 }
 
+if (process.argv[0].indexOf("zenc") >= 0) {
+  if(process.argv.length > 1) {
+    all_phrases = fs.readFileSync(process.argv[1]).toString().split("\n");
+  }
+}
+
+if(all_phrases.length == 0) {
+
+  for(var x = 0; x < wait_phrases1.length; x++) {
+    all_phrases.push(wait_phrases1[x]);
+  }
+  for(var x = 0; x < wait_phrases2.length; x++) {
+    all_phrases.push(wait_phrases2[x]);
+  }
+  for(var x = 0; x < wait_phrases3.length; x++) {
+    all_phrases.push(wait_phrases3[x]);
+  }
+
+}
+console.log(colors.blue(getWaitPhrase()));
+
+prompt.message = colors.rainbow("zenc ");
+prompt.delimiter = colors.reset("");
+
+var previous = null;
+if (fs.existsSync('.zen')){
+    cookie = fs.readFileSync('.zen');
+    previous = JSON.parse(cookie);
+}
 
 var options = {
   showNotify: true,
@@ -38,30 +66,65 @@ var options = {
   env: 'https://test.salesforce.com'
 }
 
-var prompt_schema = {
-    properties: {
-      username: {
-        message: 'Your Salesforce Username',
-        required: true
-      },
-      password: {
-        message: 'Your Salesforce Password',
-        required: true,
-        hidden: true
-      },
-      environment: {
-        message: 'login (for prod or developer edition) or test',
-        required: true,
-        defaut:"login"
+var prompt_schema = null;
+if(!previous) {
+    prompt_schema = {
+        properties: {
+          username: {
+            description: 'Salesforce Username:',
+            required: true
+          },
+          password: {
+            description: 'Salesforce Password:',
+            required: true,
+            replace: '~',
+            hidden: true
+          },
+          environment: {
+            description: 'Environment [login|test] (default: login)',
+            type: 'string',
+            pattern: 'login|test',
+            message: 'Must be login or test',
+            defaut:'login'
+          }
+        }
+      }
+} else {
+  prompt_schema = {
+      properties: {
+        username: {
+          description: 'Salesforce Username ('+previous.username+'):'
+        },
+        password: {
+          description: 'Salesforce Password:',
+          required: true,
+          replace: '~',
+          hidden: true
+        },
+        environment: {
+          description: 'Environment [login|test] ('+previous.environment+'):',
+          type: 'string',
+          pattern: 'login|test',
+          message: 'Must be login or test',
+          defaut:'login'
+        }
       }
     }
-  };
+}
 
 
 var conn = null;
 prompt.start();
 prompt.get(prompt_schema, function (err, result) {
+    if(result.username == '' && previous) { result.username = previous.username; }
+    if(result.environment == '' && previous) { result.environment = previous.environment; }
+    if(result.environment == '' && !previous) { result.environment = 'login'; }
+
     loginAndRun(result.username,result.password,result.environment);
+    fs.writeFile(".zen", '{"username":"'+result.username+'","environment":"'+result.environment+'"}', function(err) {
+          if(err) {
+              return console.log(err);
+          }});
   });
 
 function loginAndRun(username,password,env) {
@@ -82,18 +145,15 @@ function loginAndRun(username,password,env) {
         			var tooltype = checkToolType(filename);
         			var fullname = checkFullName(filename);
               var filebody = null
-              try {
-                   filebody = fs.readFileSync(filename, 'utf8');
-                } catch (err) {
-                  console.log('No file found, may have been deleted.');
-                }
-
-              if(filebody != null) {
+              if (fs.existsSync(filename) && fs.statSync(filename)["size"] > 0){
+                  filebody = fs.readFileSync(filename).toString();
+              }
+              if(filebody != null && filebody != "") {
                 console.log(fullname+' change detected ('+eventType+'). File is a '+filetype);
                 notifyMessage(fullname,'Compiling '+tooltype,'Sending '+fullname+' to the Tooling API');
               }
 
-              if(tooltype == "AuraDefinition") {
+              if(tooltype == "AuraDefinition" && filebody != null && filebody != "") {
                 var number_of_dir = filename.split(options.dir_delimiter).length;
                 if(number_of_dir > 1) {
                   var AuraDefinitionBundle = filename.split(options.dir_delimiter)[number_of_dir-2];
@@ -122,7 +182,7 @@ function loginAndRun(username,password,env) {
                 }
               }
 
-              if(tooltype != "AuraDefinition" && names_to_ids[fullname] && names_to_metaids[fullname] && filebody != null) {
+              if(tooltype != "AuraDefinition" && names_to_ids[fullname] && names_to_metaids[fullname] && filebody != null && filebody != "") {
         				updateMembersAndSendRequest(fullname,tooltype,filebody);
         			} else if(tooltype != "AuraDefinition" && filebody != null) {
         				console.log('MetaData not found for '+fullname+' ('+tooltype+'), creating...');
@@ -156,6 +216,7 @@ function queryOrCreateMember(fullname,tooltype,filebody) {
             });
     } else if(err) { console.log(err);  }
       else if(res.totalSize == 0) { console.log(fullname+' ('+tooltype+') not found.  Creating.');
+      console.log(filebody);
       conn.sobject(tooltype).create({
               Name: fullname,
               body: filebody
@@ -291,15 +352,13 @@ function upsertAuraDefinition(AuraDefinitionBundleId,filetype,body) {
 
 function updateMembersAndSendRequest(fullname,tooltype,filebody) {
   if(!compile_in_progress) {
-
-      notifyWaitPhrase(fullname);
       clearTimeout(sr);
       conn.tooling.sobject(tooltype+"Member").update({
     					Id: names_to_metaids[fullname],
     					body: filebody
     				}, function(err, res) {
-              if (err) { console.log(err); }
-              if (err) { notifyMessage(fullname,'Request Pending','Container is busy.  Cannot send recent change.');  }
+              if(err) { console.log(err); }
+      				if (err) { notifyMessage(fullname,'Request Pending','Container is busy.  Cannot send recent change.');  }
               else { notifyWaitPhrase(fullname); }
               sr = setTimeout(actuallySendRequest(fullname),500);
     				});
@@ -320,8 +379,8 @@ function actuallySendRequest(fullname) {
       isCheckOnly: false
     }, function(err, res){
         notifyWaitPhrase(fullname);
-        if (err) { console.log(err); }
-        if (err) { notifyMessage(fullname,'Request Pending','Container is busy.  Cannot send recent change.');  }
+        if(err) { console.log(err); }
+				if (err) { notifyMessage(fullname,'Request Pending','Container is busy.  Cannot send recent change.');  }
         if (!err) { checkStatus(res.id,fullname); }
     });
   }
@@ -374,10 +433,10 @@ function checkFullName(filename) {
 }
 
 function checkStatus(requestId,fullname) {
-	conn.tooling.query("SELECT Id, ErrorMsg, State, DeployDetails FROM ContainerAsyncRequest Where Id = '"+requestId+"'", function(err, res) {
+  conn.tooling.query("SELECT Id, ErrorMsg, State, DeployDetails FROM ContainerAsyncRequest Where Id = '"+requestId+"'", function(err, res) {
 				if(err) { console.log(err); }
 				if(res.records.length > 0) {
-					if(res.records[0].State == 'Queued') { setTimeout(checkStatus(requestId,fullname),2000); }
+					if(res.records[0].State == 'Queued') { setTimeout(function() {checkStatus(requestId,fullname); notifyWaitPhrase(fullname);},300); }
 					if(res.records[0].State == 'Failed') { notifyStatus(res.records[0]); compile_in_progress = false; }
 					if(res.records[0].State == 'Completed') {
             notifyStatus(res.records[0]);
@@ -391,7 +450,7 @@ function checkStatus(requestId,fullname) {
         if(!compile_in_progress) {
           for(var x = 0; x < pending_names.length; x++) {
             if(pending_names[x] != null) {
-              console.log('Sending pending '+pending_names[x]+' to compile');
+              console.log(colors.blue('Sending pending '+pending_names[x]+' to compile'));
               queryOrCreateMember(pending_compiles[pending_names[x]].fullname,pending_compiles[pending_names[x]].tooltype,pending_compiles[pending_names[x]].filebody);
               pending_names[x] = null;
             }
@@ -422,7 +481,7 @@ function notifyStatus(asyncResponse) {
   }
 
   if(asyncResponse.State == 'Completed' && options.showOnSuccess) {
-    console.log(message.fullName + ' compiled successfully.');
+    console.log(colors.green(message.fullName+' compiled successfully'));
     notifier.notify({
       'title': message.fullName,
       'subtitle': 'Compile Successful',
@@ -431,7 +490,7 @@ function notifyStatus(asyncResponse) {
   }
 
   if(asyncResponse.State == 'Failed') {
-    console.log(message.problem +' at line '+message.lineNumber+', column '+message.columnNumber);
+    console.log(colors.red(message.problem +' at line '+message.lineNumber+', column '+message.columnNumber));
     notifier.notify({
       'title': message.fullName,
       'subtitle': 'Error:' + message.problem,

@@ -4,6 +4,8 @@
 
 ##Zen Compiler
 
+On Github: https://github.com/joshbirk/zen-compiler
+
 Zen is a simple node.js CLI based harness for the Force.com Tooling API. When started, it recursively watches the directory where it was run for file changes.  If it detects a file type it knows, it will attempt to save it to the Tooling API to compile.  This allows a developer to use any editor and get compiling and save time in the background.
 
 It will then send system notifications on the current status.  If the compile is pending, it offers moderately inspirational phrases while you wait.
