@@ -1,17 +1,23 @@
 {
   "name": "zen-compiler",
-  "version": "1.0.4",
+  "version": "1.0.7",
   "description": "A lightweight CLI based harness for the Force.com Tooling API",
   "main": "./index.js",
   "bin": {
     "zenc": "./index.js",
-    "zenf": "./fetch.js"
+    "zenf": "./fetch.js",
+    "zenla": "./lightningapex.js"
   },
   "scripts": {
     "test": "echo \"No test specified\" && exit 1"
   },
   "dependencies": {
+    "adm-zip": "^0.4.7",
+    "async": "^2.1.4",
     "colors": "^1.1.2",
+    "command-line-args": "^4.0.2",
+    "dustjs-helpers": "^1.7.3",
+    "dustjs-linkedin": "^2.7.5",
     "jsforce": "^1.7.1",
     "node-notifier": "^4.6.1",
     "prompt": "^1.0.0"

@@ -4,6 +4,8 @@ var notifier = require('node-notifier');
 var jsforce = require('jsforce');
 var prompt = require('prompt');
 var colors = require("colors/safe");
+var commandLineArgs = require('command-line-args')
+
 
 var names_to_ids = [];
 var names_to_metaids = [];
@@ -16,12 +18,24 @@ var compile_in_progress = false;
 var pending_compiles = [];
 var pending_names = [];
 
-var wait_phrases1 = ["Brooks are babbling","Leaves are rustling","A cool breeze blows","Somewhere there is a rainbow","It is likely a puppy got adopted today","Somewhere, the skies are blue","Today is not a good day to die"];
-var wait_phrases2 = ["A mountain sighs","Changing the polarity","The tree that bends survives the storm","Take a deep breath","Every morning, a fresh dew on the leaf","Pixels can make true art","Mistakes are part of learning","Errors do not define you"];
-var wait_phrases3 = ["Take a moment, this API is...","Taking the next star to the right","A river flows into the ocean","Could use a sonic screwdriver","The sun will always shine again","We left footprints on the moon","Tomorrow is the first day of the rest of your life","Shy from danger, not the fight","To err is human"];
+var wait_phrases1 = ["Brooks are babbling","Blaze your own trail","Leaves are rustling","A cool breeze blows","Somewhere there is a rainbow","It is likely a puppy got adopted today","Somewhere, the skies are blue","Today is not a good day to die"];
+var wait_phrases2 = ["Live the life you have imagined.","A mountain sighs","Changing the polarity","The tree that bends survives the storm","Take a deep breath","Every morning, a fresh dew on the leaf","Pixels can make true art","Mistakes are part of learning","Errors do not define you"];
+var wait_phrases3 = ["Go confidently in the direction of your dreams.","Take a moment, this API is...","Taking the next star to the right","A river flows into the ocean","Could use a sonic screwdriver","The sun will always shine again","We left footprints on the moon","Tomorrow is the first day of the rest of your life","Shy from danger, not the fight","To err is human"];
 
 var all_phrases = [];
 
+
+
+//argument handling
+var optionDefinitions = [
+  { name: 'help', alias: 'h', type: Boolean, defaultOption: false },
+  { name: 'file', alias: 'f', type: String, defaultOption: null },
+  { name: 'pause', alias: 'p', type: Number, defaultOption: 500 }
+]
+
+var args = commandLineArgs(optionDefinitions);
+
+/*
 if(process.argv[0].indexOf("node") >= 0) {
   if(process.argv.length > 2) {
     all_phrases = fs.readFileSync(process.argv[2]).toString().split("\n");
@@ -33,6 +47,9 @@ if (process.argv[0].indexOf("zenc") >= 0) {
     all_phrases = fs.readFileSync(process.argv[1]).toString().split("\n");
   }
 }
+*/
+
+if(args.file != null) { all_phrases = fs.readFileSync(args.file).toString().split("\n"); }
 
 if(all_phrases.length == 0) {
 
@@ -62,7 +79,7 @@ var options = {
   showNotify: true,
   showOnSuccess: true,
   dir_delimiter: '/',
-  API: 38.0,
+  API: 39.0,
   env: 'https://test.salesforce.com'
 }
 
@@ -141,13 +158,16 @@ function loginAndRun(username,password,env) {
         	fs.watch('.', {recursive: true}, function(eventType, filename) {
 
             if (filename && checkFileType(filename) != null) {
-        			var filetype = checkFileType(filename);
+
+              var filetype = checkFileType(filename);
         			var tooltype = checkToolType(filename);
         			var fullname = checkFullName(filename);
-              var filebody = null
+              var filebody = null;
+
               if (fs.existsSync(filename) && fs.statSync(filename)["size"] > 0){
                   filebody = fs.readFileSync(filename).toString();
               }
+
               if(filebody != null && filebody != "") {
                 console.log(fullname+' change detected ('+eventType+'). File is a '+filetype);
                 notifyMessage(fullname,'Compiling '+tooltype,'Sending '+fullname+' to the Tooling API');
@@ -330,8 +350,7 @@ function upsertAuraDefinition(AuraDefinitionBundleId,filetype,body) {
           Id: res.records[0].Id,
           Source: body
         }, function(err,res) {
-            console.log(res);
-            if (err) { console.log(err); notifyMessage("Error",'Aura Definition Update Failed',err.ErrorMsg); }
+            if (err) { console.log(err); notifyMessage("Error",'Aura Definition Update Failed',err.errorCode); }
             if (!err) { console.log('Aura Definition Updated'); notifyMessage("Success",'Aura Definition Updated',DefType+'('+Format+') succesfully updated.'); }
         });
     } else {
@@ -341,8 +360,7 @@ function upsertAuraDefinition(AuraDefinitionBundleId,filetype,body) {
           Format: Format,
           Source: body
         }, function(err,res) {
-            console.log(res);
-            if (err) { console.log(err); notifyMessage("Error",'Aura Definition Create Failed',err.ErrorMsg); }
+            if (err) { console.log(err); notifyMessage("Error",'Aura Definition Create Failed',err.errorCode); }
             if (!err) { console.log('Aura Definition Updated'); notifyMessage("Success",'Aura Definition Created',DefType+'('+Format+') succesfully created.'); }
         });
     }
@@ -357,7 +375,7 @@ function updateMembersAndSendRequest(fullname,tooltype,filebody) {
     					Id: names_to_metaids[fullname],
     					body: filebody
     				}, function(err, res) {
-              if(err) { console.log(err); }
+              if (err) { console.log(err); }
       				if (err) { notifyMessage(fullname,'Request Pending','Container is busy.  Cannot send recent change.');  }
               else { notifyWaitPhrase(fullname); }
               sr = setTimeout(actuallySendRequest(fullname),500);
@@ -393,6 +411,7 @@ function checkFileType(filename) {
   	else if(filename.split('.')[1].toLowerCase() == "page") { return "Visualforce Page"; }
     else if(filename.split('.')[1].toLowerCase() == "vfc") { return "Visualforce Component"; }
     else if(filename.split('.')[1].toLowerCase() == "component") { return "Visualforce Component"; }
+    else if(filename.split('.')[1].toLowerCase() == "app") { return "Aura Application"; }
     else if(filename.split('.')[1].toLowerCase() == "cmp") { return "Aura Component"; }
     else if(filename.split('.')[1].toLowerCase() == "js") {
       if(filename.indexOf('Controller.js') > 0) { return "Aura Controller"; }
@@ -416,6 +435,7 @@ function checkToolType(filename) {
     else if(filename.split('.')[1].toLowerCase() == "vfc") { return "ApexComponent"; }
     else if(filename.split('.')[1].toLowerCase() == "component") { return "ApexComponent"; }
     else if(filename.split('.')[1].toLowerCase() == "cmp" ||
+            filename.split('.')[1].toLowerCase() == "app" ||
             filename.split('.')[1].toLowerCase() == "js" ||
             filename.split('.')[1].toLowerCase() == "css" ||
             filename.split('.')[1].toLowerCase() == "auradoc" ||
@@ -436,8 +456,8 @@ function checkStatus(requestId,fullname) {
   conn.tooling.query("SELECT Id, ErrorMsg, State, DeployDetails FROM ContainerAsyncRequest Where Id = '"+requestId+"'", function(err, res) {
 				if(err) { console.log(err); }
 				if(res.records.length > 0) {
-					if(res.records[0].State == 'Queued') { setTimeout(function() {checkStatus(requestId,fullname); notifyWaitPhrase(fullname);},300); }
-					if(res.records[0].State == 'Failed') { notifyStatus(res.records[0]); compile_in_progress = false; }
+					if(res.records[0].State == 'Queued') { setTimeout(function() {checkStatus(requestId,fullname); notifyWaitPhrase(fullname);},600); }
+					if(res.records[0].State == 'Failed') { console.log(res.records[0]); notifyStatus(res.records[0]); compile_in_progress = false; }
 					if(res.records[0].State == 'Completed') {
             notifyStatus(res.records[0]);
             names_to_metaids[res.records[0].DeployDetails.allComponentMessages[0].fullName] = null;

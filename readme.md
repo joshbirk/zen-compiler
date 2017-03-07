@@ -37,14 +37,23 @@ zenf
 
 Remember that zen is meant for quick development and not as a build tool.  For more options for working with Force.com from the CLI, install [Force.com CLI](https://force-cli.heroku.com/).
 
+###1.0.7 Updates
+* Bug fixes and cleanup
+* Moved phrase file to a specific arg, -f (ie zenc -f filename.txt)
+* Starting to migrate all command line args to command-line-args
+* Added completely undocumented feature: zenla
+
+
 ###1.0.4 Upates
-* You can now specificy a newline delimited file to override the moderately inspirational phrases.
+* You can now specify a newline delimited file to override the moderately inspirational phrases.
 * Username and environment choices) are stored in a file (.zen) for future prompts.  Passwords are not stored anywhere.
 * Login is now the default environment
 * Moderately inspirational colors added to log
 * Empty files will not be sent to the Tooling API
 * Added zen fetch (see above)
 * A few tweaks to the API call loop
+
+
 
 
 ## Disclaimer

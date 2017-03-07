@@ -77,6 +77,7 @@ if(!previous) {
 
 var conn = null;
 var returns = 0;
+var bundle_to_id = [];
 
 prompt.start();
 prompt.get(prompt_schema, function (err, result) {
@@ -149,24 +150,34 @@ function loginAndRun(username,password,env,search) {
 
     //Aurabundles
     conn.tooling.query("SELECT Id, DeveloperName from AuraDefinitionBundle where DeveloperName LIKE '%"+search+"%'",function(err,result){
+      if(err){console.log(err);}
+
       if (!fs.existsSync('lightning')){
           fs.mkdirSync('lightning');
       }
       for(var x = 0; x < result.records.length; x++) {
+        bundle_to_id[result.records[x].Id] = result.records[x].DeveloperName;
         if (!fs.existsSync('./lightning/'+result.records[x].DeveloperName)){
             fs.mkdirSync('./lightning/'+result.records[x].DeveloperName);
         }
         var bundle = result.records[x].DeveloperName;
-        conn.tooling.query("SELECT Id, Format, DefType, Source from AuraDefinition where AuraDefinitionBundleId = '"+result.records[x].Id+"'",function(err,result){
+        console.log("Getting bundle for "+bundle);
+        conn.tooling.query("SELECT Id, Format, DefType, Source, AuraDefinitionBundleId from AuraDefinition where AuraDefinitionBundleId = '"+result.records[x].Id+"'",function(err,result){
+          if(err){console.log(err);}
+          else{console.log(result);}
           for(var x = 0; x < result.records.length; x++) {
-            var file_name = bundle;
+            var file_name = bundle_to_id[result.records[x].AuraDefinitionBundleId];
+            console.log("Getting DEFTYPE for "+result.records[x].DefType);
             if(result.records[x].DefType == 'CONTROLLER') { file_name += 'Controller.js'; }
-            if(result.records[x].DefType == 'HELP') { file_name += 'Helper.js'; }
+            if(result.records[x].DefType == 'HELPER') { file_name += 'Helper.js'; }
             if(result.records[x].DefType == 'RENDERER') { file_name += 'Renderer.js'; }
+            if(result.records[x].DefType == 'DESIGN') { file_name += '.design'; }
+            if(result.records[x].DefType == 'APPLICATION') { file_name += '.app'; }
             if(result.records[x].DefType == 'COMPONENT') { file_name += '.cmp'; }
             if(result.records[x].DefType == 'STYLE') { file_name += '.css'; }
+            if(result.records[x].DefType == 'SVG') { file_name += '.svg'; }
             if(result.records[x].DefType == 'DOCUMENTATION') { file_name += '.auradoc'; }
-            fs.writeFile("./lightning/"+bundle+"/"+file_name, result.records[x].Source, function(err) {
+            fs.writeFile("./lightning/"+bundle_to_id[result.records[x].AuraDefinitionBundleId]+"/"+file_name, result.records[x].Source, function(err) {
                   if(err) {
                       return console.log(err);
                   }});
