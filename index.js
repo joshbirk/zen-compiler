@@ -28,26 +28,14 @@ var all_phrases = [];
 
 //argument handling
 var optionDefinitions = [
+  { name: 'token', alias: 't', type: String },
+  { name: 'instance', alias: 'i', type: String },
   { name: 'help', alias: 'h', type: Boolean, defaultOption: false },
-  { name: 'file', alias: 'f', type: String, defaultOption: null },
+  { name: 'file', alias: 'f', type: String },
   { name: 'pause', alias: 'p', type: Number, defaultOption: 500 }
 ]
 
 var args = commandLineArgs(optionDefinitions);
-
-/*
-if(process.argv[0].indexOf("node") >= 0) {
-  if(process.argv.length > 2) {
-    all_phrases = fs.readFileSync(process.argv[2]).toString().split("\n");
-  }
-}
-
-if (process.argv[0].indexOf("zenc") >= 0) {
-  if(process.argv.length > 1) {
-    all_phrases = fs.readFileSync(process.argv[1]).toString().split("\n");
-  }
-}
-*/
 
 if(args.file != null) { all_phrases = fs.readFileSync(args.file).toString().split("\n"); }
 
@@ -84,12 +72,34 @@ var options = {
 }
 
 var prompt_schema = null;
-if(!previous) {
+if(!args.token || !args.token) {
+  if(!previous) {
+      prompt_schema = {
+          properties: {
+            username: {
+              description: 'Salesforce Username:',
+              required: true
+            },
+            password: {
+              description: 'Salesforce Password:',
+              required: true,
+              replace: '~',
+              hidden: true
+            },
+            environment: {
+              description: 'Environment [login|test] (default: login)',
+              type: 'string',
+              pattern: 'login|test',
+              message: 'Must be login or test',
+              defaut:'login'
+            }
+          }
+        }
+  } else {
     prompt_schema = {
         properties: {
           username: {
-            description: 'Salesforce Username:',
-            required: true
+            description: 'Salesforce Username ('+previous.username+'):'
           },
           password: {
             description: 'Salesforce Password:',
@@ -98,7 +108,7 @@ if(!previous) {
             hidden: true
           },
           environment: {
-            description: 'Environment [login|test] (default: login)',
+            description: 'Environment [login|test] ('+previous.environment+'):',
             type: 'string',
             pattern: 'login|test',
             message: 'Must be login or test',
@@ -106,52 +116,49 @@ if(!previous) {
           }
         }
       }
+  }
+}
+
+var conn = null;
+if(!args.token || !args.instance) {
+    prompt.start();
+    prompt.get(prompt_schema, function (err, result) {
+        if(result.username == '' && previous) { result.username = previous.username; }
+        if(result.environment == '' && previous) { result.environment = previous.environment; }
+        if(result.environment == '' && !previous) { result.environment = 'login'; }
+
+        loginAndRun(result.username,result.password,result.environment);
+        fs.writeFile(".zen", '{"username":"'+result.username+'","environment":"'+result.environment+'"}', function(err) {
+              if(err) {
+                  return console.log(err);
+              }});
+      });
 } else {
-  prompt_schema = {
-      properties: {
-        username: {
-          description: 'Salesforce Username ('+previous.username+'):'
-        },
-        password: {
-          description: 'Salesforce Password:',
-          required: true,
-          replace: '~',
-          hidden: true
-        },
-        environment: {
-          description: 'Environment [login|test] ('+previous.environment+'):',
-          type: 'string',
-          pattern: 'login|test',
-          message: 'Must be login or test',
-          defaut:'login'
+  loginAndRun(null,null,null);
+}
+
+function loginAndRun(username,password,env) {
+        if(!args.token || !args.instance) {
+          conn = new jsforce.Connection({loginUrl : 'https://'+env+'.salesforce.com'});
+          conn.login(username, password, function(err, userInfo) {
+
+          if (err) {  console.log(err);  }
+          else {
+            console.log(colors.green('Logged into Salesforce instance '+conn.instanceUrl+' with the access token '+conn.accessToken));
+            createContainerAndWatch();
+          }
+        });
+
+        } else {
+          console.log(args.token);
+          conn = new jsforce.Connection({instanceUrl: args.instance, accessToken : args.token});
+          console.log(colors.green('Logged into Salesforce instance '+conn.instanceUrl+' with the access token '+conn.accessToken));
+          createContainerAndWatch();
         }
-      }
-    }
 }
 
 
-var conn = null;
-prompt.start();
-prompt.get(prompt_schema, function (err, result) {
-    if(result.username == '' && previous) { result.username = previous.username; }
-    if(result.environment == '' && previous) { result.environment = previous.environment; }
-    if(result.environment == '' && !previous) { result.environment = 'login'; }
-
-    loginAndRun(result.username,result.password,result.environment);
-    fs.writeFile(".zen", '{"username":"'+result.username+'","environment":"'+result.environment+'"}', function(err) {
-          if(err) {
-              return console.log(err);
-          }});
-  });
-
-function loginAndRun(username,password,env) {
-        conn = new jsforce.Connection({loginUrl : 'https://'+env+'.salesforce.com'});
-        conn.login(username, password, function(err, userInfo) {
-
-        if (err) {  console.log(err);  }
-        else {
-        	console.log('Logged into Salesforce.');
-
+function createContainerAndWatch() {
         	console.log('Checking Container, please wait...');
           createContainer();
 
@@ -212,9 +219,6 @@ function loginAndRun(username,password,env) {
 
         		}
         	});
-
-        }
-        });
 }
 
 
@@ -225,7 +229,7 @@ function queryOrCreateMember(fullname,tooltype,filebody) {
       conn.tooling.sobject(tooltype+"Member").create({
               ContentEntityId: names_to_ids[fullname],
               MetadataContainerId: containerId,
-              body: filebody
+              Body: filebody
             }, function(err, res) {
               if (err) { console.log(err);  }
               else {
@@ -237,17 +241,28 @@ function queryOrCreateMember(fullname,tooltype,filebody) {
     } else if(err) { console.log(err);  }
       else if(res.totalSize == 0) { console.log(fullname+' ('+tooltype+') not found.  Creating.');
       console.log(filebody);
-      conn.sobject(tooltype).create({
-              Name: fullname,
-              body: filebody
-            }, function(err, res) {
+      var payload = {};
+      if(tooltype == 'ApexClass' || tooltype == 'ApexTrigger') {
+        payload = {
+                Name: fullname,
+                Body: filebody
+              }
+      } else {
+        payload = {
+                Name: fullname,
+                Markup: filebody,
+                MasterLabel: fullname
+              }
+      }
+      console.log(payload);
+      conn.sobject(tooltype).create(payload, function(err, res) {
               if (err) { console.log(err);  }
               else {
                 names_to_ids[fullname] = res.id;
                 conn.tooling.sobject(tooltype+"Member").create({
                         ContentEntityId: names_to_ids[fullname],
                         MetadataContainerId: containerId,
-                        body: filebody
+                        Body: filebody
                       }, function(err, res) {
                         if (err) { console.log(err);  }
                         else {
@@ -378,7 +393,7 @@ function updateMembersAndSendRequest(fullname,tooltype,filebody) {
               if (err) { console.log(err); }
       				if (err) { notifyMessage(fullname,'Request Pending','Container is busy.  Cannot send recent change.');  }
               else { notifyWaitPhrase(fullname); }
-              sr = setTimeout(actuallySendRequest(fullname),500);
+              sr = setTimeout(function() {actuallySendRequest(fullname)},500);
     				});
   } else {
 
@@ -457,13 +472,13 @@ function checkStatus(requestId,fullname) {
 				if(err) { console.log(err); }
 				if(res.records.length > 0) {
 					if(res.records[0].State == 'Queued') { setTimeout(function() {checkStatus(requestId,fullname); notifyWaitPhrase(fullname);},600); }
-					if(res.records[0].State == 'Failed') { console.log(res.records[0]); notifyStatus(res.records[0]); compile_in_progress = false; }
+					if(res.records[0].State == 'Failed') { console.log(colors.red(res.records[0])); notifyStatus(res.records[0]); compile_in_progress = false; }
 					if(res.records[0].State == 'Completed') {
             notifyStatus(res.records[0]);
             names_to_metaids[res.records[0].DeployDetails.allComponentMessages[0].fullName] = null;
             compile_in_progress = false;
           }
-					if(res.records[0].State == 'Error') { console.log(res.records[0].ErrorMsg); compile_in_progress = false; }
+					if(res.records[0].State == 'Error') { console.log(colors.red(res.records[0].ErrorMsg)); compile_in_progress = false; }
 				} else {
           console.log('No Sync Request Found');
         }

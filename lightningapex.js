@@ -201,20 +201,15 @@ function loginAndRun(username,password,env,search) {
 
 var component_dust = `
 <aura:component implements="force:appHostable,flexipage:availableForAllPageTypes,force:hasRecordId"
-                       controller="{name}" >
+                controller="{name}" >
 
 {#functions}
 
-{@eq key="{comment}" value="init"}
-  {#params}<aura:attribute name="{varname}" type="{type}" />{/params}
-  <aura:handler name="init" value="{~lb}!this{~rb}" action="{~lb}!c.c_{name}{~rb}"/>
-{/eq}
-
-<div class="slds-media__body">
+<div style="padding: 10px; border: 1px solid black;">
 <!-- {comment} -->
 {#params}<ui:inputText label="{varname}" aura:id="{varname}"  /><BR />{/params}
 <ui:button label="{name} Test" aura:id="{~lb}{name}_button{~rb}" press="{~lb}!c.c_{name}{~rb}" /><BR />
-<ui:outputText aura:id="{~lb}{name}_response{~rb}" />
+<ui:outputText value="{~lb}{name}_response{~rb}" />
 </div>
 
 {/functions}
@@ -224,8 +219,8 @@ var component_dust = `
 
 var controller_dust = `({~lb}
 {#functions}
-  "c_{name}": function(c,e,h) {~lb}
-        h.callApex(c,"{name}",{~lb}
+  "invoke{name}": function(c,e,h) {~lb}
+        h.invokeApex(c,"{name}",{~lb}
             {#params}{varname} : c.get("v.{varname}"){@sep}, {/sep}{/params}
             {~rb},function(response) {~lb}
               c.set("v.{name}_response",response);
@@ -235,7 +230,7 @@ var controller_dust = `({~lb}
 {~rb})`;
 
 var helper_js= `({
-    "callApex" : function(c,functionName,params,callback) {
+    "invokeApex" : function(c,functionName,params,callback) {
         var action = c.get("c."+functionName);
         action.setParams(params);
 
