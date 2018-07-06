@@ -1,10 +1,10 @@
 {
   "name": "zen-compiler",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A lightweight CLI based harness for the Force.com Tooling API",
   "main": "./index.js",
   "bin": {
-    "zenc": "./index.js",
+    "zenc": "./zenc.js",
     "zenf": "./fetch.js",
     "zenla": "./lightningapex.js"
   },
@@ -20,7 +20,8 @@
     "dustjs-linkedin": "^2.7.5",
     "jsforce": "^1.7.1",
     "node-notifier": "^4.6.1",
-    "prompt": "^1.0.0"
+    "prompt": "^1.0.0",
+    "cli-spinners": "*"
   },
   "author": "joshbirk",
   "license": "ISC"

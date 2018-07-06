@@ -1,11 +1,9 @@
-#!/usr/bin/env node
 var fs = require('fs');
 var notifier = require('node-notifier');
 var jsforce = require('jsforce');
 var prompt = require('prompt');
 var colors = require("colors/safe");
 var commandLineArgs = require('command-line-args')
-
 
 var names_to_ids = [];
 var names_to_metaids = [];
@@ -23,44 +21,14 @@ var wait_phrases2 = ["Live the life you have imagined.","A mountain sighs","Chan
 var wait_phrases3 = ["Go confidently in the direction of your dreams.","Take a moment, this API is...","Taking the next star to the right","A river flows into the ocean","Could use a sonic screwdriver","The sun will always shine again","We left footprints on the moon","Tomorrow is the first day of the rest of your life","Shy from danger, not the fight","To err is human"];
 
 var all_phrases = [];
-
-
-
-//argument handling
-var optionDefinitions = [
-  { name: 'token', alias: 't', type: String },
-  { name: 'instance', alias: 'i', type: String },
-  { name: 'help', alias: 'h', type: Boolean, defaultOption: false },
-  { name: 'file', alias: 'f', type: String },
-  { name: 'pause', alias: 'p', type: Number, defaultOption: 500 }
-]
-
-var args = commandLineArgs(optionDefinitions);
-
-if(args.file != null) { all_phrases = fs.readFileSync(args.file).toString().split("\n"); }
-
-if(all_phrases.length == 0) {
-
-  for(var x = 0; x < wait_phrases1.length; x++) {
-    all_phrases.push(wait_phrases1[x]);
-  }
-  for(var x = 0; x < wait_phrases2.length; x++) {
-    all_phrases.push(wait_phrases2[x]);
-  }
-  for(var x = 0; x < wait_phrases3.length; x++) {
-    all_phrases.push(wait_phrases3[x]);
-  }
-
+for(var x = 0; x < wait_phrases1.length; x++) {
+  all_phrases.push(wait_phrases1[x]);
 }
-console.log(colors.blue(getWaitPhrase()));
-
-prompt.message = colors.rainbow("zenc ");
-prompt.delimiter = colors.reset("");
-
-var previous = null;
-if (fs.existsSync('.zen')){
-    cookie = fs.readFileSync('.zen');
-    previous = JSON.parse(cookie);
+for(var x = 0; x < wait_phrases2.length; x++) {
+  all_phrases.push(wait_phrases2[x]);
+}
+for(var x = 0; x < wait_phrases3.length; x++) {
+  all_phrases.push(wait_phrases3[x]);
 }
 
 var options = {
@@ -71,99 +39,41 @@ var options = {
   env: 'https://test.salesforce.com'
 }
 
-var prompt_schema = null;
-if(!args.token || !args.token) {
-  if(!previous) {
-      prompt_schema = {
-          properties: {
-            username: {
-              description: 'Salesforce Username:',
-              required: true
-            },
-            password: {
-              description: 'Salesforce Password:',
-              required: true,
-              replace: '~',
-              hidden: true
-            },
-            environment: {
-              description: 'Environment [login|test] (default: login)',
-              type: 'string',
-              pattern: 'login|test',
-              message: 'Must be login or test',
-              defaut:'login'
-            }
-          }
-        }
-  } else {
-    prompt_schema = {
-        properties: {
-          username: {
-            description: 'Salesforce Username ('+previous.username+'):'
-          },
-          password: {
-            description: 'Salesforce Password:',
-            required: true,
-            replace: '~',
-            hidden: true
-          },
-          environment: {
-            description: 'Environment [login|test] ('+previous.environment+'):',
-            type: 'string',
-            pattern: 'login|test',
-            message: 'Must be login or test',
-            defaut:'login'
-          }
-        }
-      }
-  }
-}
-
-var conn = null;
-if(!args.token || !args.instance) {
-    prompt.start();
-    prompt.get(prompt_schema, function (err, result) {
-        if(result.username == '' && previous) { result.username = previous.username; }
-        if(result.environment == '' && previous) { result.environment = previous.environment; }
-        if(result.environment == '' && !previous) { result.environment = 'login'; }
-
-        loginAndRun(result.username,result.password,result.environment);
-        fs.writeFile(".zen", '{"username":"'+result.username+'","environment":"'+result.environment+'"}', function(err) {
-              if(err) {
-                  return console.log(err);
-              }});
-      });
-} else {
-  loginAndRun(null,null,null);
+function loginAndRunWithToken(instance,token) {
+    conn = new jsforce.Connection({instanceUrl: instance, accessToken : token});
+    console.log(colors.blue(getWaitPhrase()));
+    console.log(colors.green('Logged into Salesforce instance '+conn.instanceUrl+' with the access token '+conn.accessToken));
+    createContainerAndWatch();
 }
 
 function loginAndRun(username,password,env) {
-        if(!args.token || !args.instance) {
           conn = new jsforce.Connection({loginUrl : 'https://'+env+'.salesforce.com'});
           conn.login(username, password, function(err, userInfo) {
-
-          if (err) {  console.log(err);  }
-          else {
-            console.log(colors.green('Logged into Salesforce instance '+conn.instanceUrl+' with the access token '+conn.accessToken));
-            createContainerAndWatch();
-          }
-        });
-
-        } else {
-          console.log(args.token);
-          conn = new jsforce.Connection({instanceUrl: args.instance, accessToken : args.token});
-          console.log(colors.green('Logged into Salesforce instance '+conn.instanceUrl+' with the access token '+conn.accessToken));
-          createContainerAndWatch();
-        }
+            if (err) {  console.log(err);  }
+            else {
+              console.log(colors.green('Logged into Salesforce instance '+conn.instanceUrl+' with the access token '+conn.accessToken));
+              createContainerAndWatch();
+            }
+          });
 }
 
+function setToken(instance,token) {
+  console.log(colors.green('Setting Salesforce instance '+instance+' with the access token '+token+' to .zen'));
+  fs.writeFile(".zen", '{"instanceUrl":"'+instance+'","accessToken":"'+token+'"}', function(err) {
+      if(err) {
+          return console.log(err);
+      } else {
+          return console.log("Token set.  Use zenc to watch for files.")
+      }
+    });
+}
 
 function createContainerAndWatch() {
         	console.log('Checking Container, please wait...');
           createContainer();
-
-        	fs.watch('.', {recursive: true}, function(eventType, filename) {
-
+          console.log('Watching for updates.  Press Ctrl+C to quit.');
+          fs.watch('.', {recursive: true}, function(eventType, filename) {
+            console.log(checkFileType(filename));
             if (filename && checkFileType(filename) != null) {
 
               var filetype = checkFileType(filename);
@@ -210,10 +120,20 @@ function createContainerAndWatch() {
               }
 
               if(tooltype != "AuraDefinition" && names_to_ids[fullname] && names_to_metaids[fullname] && filebody != null && filebody != "") {
-        				updateMembersAndSendRequest(fullname,tooltype,filebody);
+        				if(sr == null) {
+                  sr = setTimeout(function() {updateMembersAndSendRequest(fullname,tooltype,filebody)},100);
+                } else {
+                  clearTimeout(sr);
+                  sr = setTimeout(function() {updateMembersAndSendRequest(fullname,tooltype,filebody)},100);
+                }
         			} else if(tooltype != "AuraDefinition" && filebody != null) {
         				console.log('MetaData not found for '+fullname+' ('+tooltype+'), creating...');
-        				queryOrCreateMember(fullname,tooltype,filebody);
+        				if(sr == null) {
+                  sr = setTimeout(function() {queryOrCreateMember(fullname,tooltype,filebody)},1000);
+                } else {
+                  clearTimeout(sr);
+                  sr = setTimeout(function() {queryOrCreateMember(fullname,tooltype,filebody)},1000);
+                }
         			}
 
 
@@ -240,7 +160,6 @@ function queryOrCreateMember(fullname,tooltype,filebody) {
             });
     } else if(err) { console.log(err);  }
       else if(res.totalSize == 0) { console.log(fullname+' ('+tooltype+') not found.  Creating.');
-      console.log(filebody);
       var payload = {};
       if(tooltype == 'ApexClass' || tooltype == 'ApexTrigger') {
         payload = {
@@ -254,7 +173,8 @@ function queryOrCreateMember(fullname,tooltype,filebody) {
                 MasterLabel: fullname
               }
       }
-      console.log(payload);
+
+      console.log("PAYLOAD"+payload);
       conn.sobject(tooltype).create(payload, function(err, res) {
               if (err) { console.log(err);  }
               else {
@@ -282,41 +202,54 @@ function createContainer() {
   	conn.tooling.query("SELECT ID FROM MetadataContainer WHERE NAME = 'CLI Compiler'", function(err, res) {
   		if(err) { console.log(err);  }
   		if(res.records.length > 0) {
-  			containerId = res.records[0].Id;
+        console.log('Container found, deleting.');
+  		/*	containerId = res.records[0].Id;
   			checkExistingClassMembers();
   			checkExistingTriggerMembers();
         checkExistingPageMembers();
-        console.log('Container found.');
+        console.log('Container found.'); */
+        conn.tooling.sobject("MetaDataContainer").delete([res.records[0].Id], function(err,res){
+          console.log(res);
+          conn.tooling.sobject("MetaDataContainer").create({Name:"CLI Compiler"}, function(err, res) {
+            if (err) { console.log(err);  }
+            else {
+              console.log(res);
+              containerId = res.id;
+              console.log('Container created. '+containerId);
+            }
+          });  
+        })
   		} else {
   			conn.tooling.sobject("MetaDataContainer").create({Name:"CLI Compiler"}, function(err, res) {
   							if (err) { console.log(err);  }
   							else {
   								containerId = res.Id;
-                  checkExistingClassMembers();
-  								checkExistingTriggerMembers();
-                  checkExistingPageMembers();
-                  console.log('Container created.');
+                  console.log('Container created.'+containerId);
   							}
   						});
   		}
   	});
 }
 
+/*
 function checkExistingClassMembers() {
-	conn.tooling.query("SELECT ID, ContentEntityId, FullName FROM ApexClassMember WHERE MetadataContainerId = '"+containerId+"'", function(err, res) {
-		if(err) { console.log(err);  }
-		console.log(res.records.length + " Apex Class(es) found in Container.");
-		for(var x = 0; x < res.records.length; x++) {
-			names_to_ids[res.records[x].FullName] = res.records[x].ContentEntityId;
-			names_to_metaids[res.records[x].FullName] = res.records[x].Id;
-			metaids_to_names[res.records[x].Id] = res.records[x].FullName;
-		}
+  if(containerId) {
+      conn.tooling.query("SELECT ID, ContentEntityId, FullName FROM ApexClassMember WHERE MetadataContainerId = '"+containerId+"'", function(err, res) {
+    		if(err) { console.log(err);  }
+    		console.log(res.records.length + " Apex Class(es) found in Container.");
+    		for(var x = 0; x < res.records.length; x++) {
+    			names_to_ids[res.records[x].FullName] = res.records[x].ContentEntityId;
+    			names_to_metaids[res.records[x].FullName] = res.records[x].Id;
+          metaids_to_names[res.records[x].Id] = res.records[x].FullName;
+        }
 
-	});
+    	});
+    }
 }
 
 function checkExistingTriggerMembers() {
-	conn.tooling.query("SELECT ID, ContentEntityId, FullName FROM ApexTriggerMember WHERE MetadataContainerId = '"+containerId+"'", function(err, res) {
+  if(containerId) {
+  conn.tooling.query("SELECT ID, ContentEntityId, FullName FROM ApexTriggerMember WHERE MetadataContainerId = '"+containerId+"'", function(err, res) {
 		if(err) { console.log(err);  }
 		console.log(res.records.length + " Apex Trigger(s) found in Container.");
 		for(var x = 0; x < res.records.length; x++) {
@@ -327,9 +260,11 @@ function checkExistingTriggerMembers() {
 
 	});
 }
+}
 
 function checkExistingPageMembers() {
-	conn.tooling.query("SELECT ID, ContentEntityId, FullName FROM ApexPageMember WHERE MetadataContainerId = '"+containerId+"'", function(err, res) {
+  if(containerId) {
+  conn.tooling.query("SELECT ID, ContentEntityId, FullName FROM ApexPageMember WHERE MetadataContainerId = '"+containerId+"'", function(err, res) {
 		if(err) { console.log(err);  }
 		console.log(res.records.length + " Apex Pages(s) found in Container.");
 		for(var x = 0; x < res.records.length; x++) {
@@ -350,7 +285,10 @@ function checkExistingPageMembers() {
 		}
 
 	});
+
+  }
 }
+*/
 
 function upsertAuraDefinition(AuraDefinitionBundleId,filetype,body) {
   var DefType = filetype.split(" ")[1].toUpperCase();
@@ -365,8 +303,8 @@ function upsertAuraDefinition(AuraDefinitionBundleId,filetype,body) {
           Id: res.records[0].Id,
           Source: body
         }, function(err,res) {
-            if (err) { console.log(err); notifyMessage("Error",'Aura Definition Update Failed',err.errorCode); }
-            if (!err) { console.log('Aura Definition Updated'); notifyMessage("Success",'Aura Definition Updated',DefType+'('+Format+') succesfully updated.'); }
+            if (err) { console.log(colors.red(err)); notifyMessage("Error",'Aura Definition Update Failed',err.errorCode); }
+            if (!err) { console.log(colors.green('Aura '+DefType+' Updated')); notifyMessage("Success",'Aura Definition Updated',DefType+'('+Format+') succesfully updated.'); }
         });
     } else {
       conn.tooling.sobject("AuraDefinition").create({
@@ -375,8 +313,8 @@ function upsertAuraDefinition(AuraDefinitionBundleId,filetype,body) {
           Format: Format,
           Source: body
         }, function(err,res) {
-            if (err) { console.log(err); notifyMessage("Error",'Aura Definition Create Failed',err.errorCode); }
-            if (!err) { console.log('Aura Definition Updated'); notifyMessage("Success",'Aura Definition Created',DefType+'('+Format+') succesfully created.'); }
+            if (err) { console.log(colors.red(err)); notifyMessage("Error",'Aura Definition Create Failed',err.errorCode); }
+            if (!err) { console.log(colors.green('Aura '+DefType+' Updated')); notifyMessage("Success",'Aura Definition Created',DefType+'('+Format+') succesfully created.'); }
         });
     }
   });
@@ -547,3 +485,25 @@ function notifyWaitPhrase(fullname) {
       'message': getWaitPhrase()
     });
 }
+
+
+
+
+module.exports = {
+
+  loginAndRun: (username, password, environment) => {
+    loginAndRun(username, password, environment);
+  },
+
+  setToken: (instanceUrl, token) => {
+    setToken(instanceUrl,token);
+  },
+
+  loginAndRunWithToken: (instanceUrl, token) => {
+    loginAndRunWithToken(instanceUrl,token);
+  },
+
+  getWaitPhrase: () => {
+    return getWaitPhrase();
+  }
+};
