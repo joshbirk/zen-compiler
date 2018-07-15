@@ -1,6 +1,6 @@
 {
   "name": "zen-compiler",
-  "version": "1.0.9",
+  "version": "1.0.9.1",
   "description": "A lightweight CLI based harness for the Force.com Tooling API",
   "main": "./index.js",
   "bin": {
