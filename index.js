@@ -35,7 +35,7 @@ var options = {
   showNotify: true,
   showOnSuccess: true,
   dir_delimiter: '/',
-  API: 39.0,
+  API: 43.0,
   env: 'https://test.salesforce.com'
 }
 
